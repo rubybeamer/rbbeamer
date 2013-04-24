@@ -1,0 +1,506 @@
+#!/usr/bin/env ruby
+#Encoding: UTF-8
+#######################################################################
+#   rbbeamer is a preprocessor for creating TEX-files for LaTeX-Beamer.
+#   Copyright (C) 2013 Thomas Romeyke (rbbeamer at googlemail.com).
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#######################################################################
+require 'trollop'
+require 'parseconfig.rb'
+require 'open3'
+require 'pathname'
+
+Version = "0.5.0 (2013-04-24)"
+
+sep = '|' # seperator-string to split different parts of a line / command
+SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
+Defaulttheme = 'Luebeck'
+DefaultLanguage = 'english'
+Backend = 'bibtex'
+Logofile = 'logo'  # should be .png or .jpg or ...
+DefaultLatexBinary = 'pdflatex'
+DefaultLatexPath = ''  # '' means: search in $PATH
+copyLines = FALSE
+endtext = ''
+bibline = '%'
+
+# These file-extensions are to be deleted after producing a pdf  (only if deleteworkfiles is TRUE)
+delLatexFiles = %w(.aux .blg .vrb .nav .snm .toc .bbl .log .out .run.xm .tex .eps .run.xml -blx.bib)
+
+def license
+lic = <<-EOF
+rbbeamer is a preprocessor for creating TEX-files for LaTeX-Beamer.
+Copyright (C) 2013 Thomas Romeyke (rbbeamer at googlemail.com).
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+EOF
+return lic
+end
+class Object
+  def to_bool
+    !!(self.to_s =~ /^(true|t|yes|y|1)$/i)
+  end
+end
+
+def intro_beamer
+intro = <<-'EOF'
+\documentclass[/<-KVAR-TBR->/]{beamer}  
+\usepackage[/<-KVAR-TBR->/]{babel}		
+\usepackage[T1]{fontenc}							
+\usepackage[utf8]{inputenc}		
+\setbeamercovered{transparent}
+\usepackage{pdfpages}
+\usepackage[style=authortitle,backend=/<-KVAR-TBR->/]{biblatex} 
+\usetheme{/<-KVAR-TBR->/}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows}
+/<-KVAR-TBR->/
+/<-KVAR-TBR->/
+\begin{document}
+\title[{\makebox[.45\paperwidth]{/<-KVAR-TBR->/\hfill%
+       \insertframenumber/\inserttotalframenumber}}]{/<-KVAR-TBR->/} 
+\titlegraphic{\includegraphics[height=1.5cm]{/<-LOGOFILE->/}}
+\author{/<-KVAR-TBR->/}
+\date{/<-KVAR-TBR->/} 
+%\setbeamerfont{parent A}{size=\Large}
+%\setbeamerfont{parent B}{size=\small}
+%\setbeamerfont{parent B}{size=\footnotesize}
+%\setbeamerfont{parent Z}{size=\normalsize}
+\logo{\pgfimage[height=0.7cm]{/<-LOGOFILE->/}}
+\frame [plain]{
+  \titlepage   
+}
+EOF
+return intro
+end
+
+def toc_beamer
+toc = <<-'EOF'
+\setcounter{tocdepth}{%s}
+\frame[plain]{
+ \frametitle{%s}
+ \tableofcontents
+}
+EOF
+return toc
+end
+
+def checkStruc(struc,code,situation)
+  # trying to finde missing closing elements or unmatched #d or #i elements
+  case situation
+  when 'new'
+    # struc must be empty, otherwise we already have an open structure
+    mode = struc == ''
+    puts "WARNING: Missing closing element for " + struc[1] unless mode
+  when '-'
+    # code must fit to struc
+    mode = code.gsub(/#/,'') == struc[0].gsub(/#f/,'')
+    puts "WARNING: #{code} does'nt match #{struc[0]}: '" + struc[1] + "'" unless mode
+  when 'close'
+    # code must fit to struc
+    mode = code.gsub(/#F/,'') == struc[0].gsub(/#f/,'')
+    puts "WARNING: closing #{code} does'nt match #{struc[0]}: '" + struc[1] + "'" unless mode
+  else
+    raise "Problem: situation= #{situation.inspect} " + ' (' + struc + '): ' + code
+  end
+  return mode
+end
+
+def sanitize_path(path)
+  # path and filename is editable by user (configfile and/or options). So it should be
+  # sanitized to avoid entering a command within file/pathname.
+  return path.gsub(/[^a-z0-9A-Z\.\/\-]+/,'_')
+end
+
+def callsystem(cmd,verbose)
+  # runs command 'cmd' via commandline. if verbose == TRUE, all output will be
+  # forwarded to user.
+  # if verbose == FALSE, only stderr will be forwarded
+  if verbose
+    Open3.popen2e(cmd) do |stdin, stdout_err, wait_thr|
+      while line = stdout_err.gets
+        puts line
+      end
+      exit_code = wait_thr.value
+      unless exit_code.success?
+        abort "Error (callsystem): #{cmd}"
+      end
+    end
+  else
+    Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
+      while line = stderr.gets
+        puts line
+      end
+    end
+  end
+end
+
+#######################################################################################
+
+fname = File.basename(__FILE__)
+firstname = File.basename(__FILE__,'.*')
+pathname = File.dirname(File.expand_path(__FILE__))
+pathname_lib = Pathname.new(pathname).parent.to_s + '/lib'
+homedir = Dir.home + '/'
+
+# Configfile will be:
+ccfg = homedir + '.' + firstname + '.conf'
+
+opts = Trollop::options do
+  opt :seperator, "use this pattern as seperator", :type => :string, :default => sep
+  opt :logo, "Logo-File (without extension) for slides", :type => :string, :short => 'o', :default => Logofile
+  opt :pdf, "Start pdflatex after creating tex-file", :default => false
+  opt :handout, "build a handout (no animations in pdf, add _handout to filename)", :default => false
+  opt :theme, "Beamer-Theme to use (see Beamer-Doc for more info)", :type => :string, :default => 'luebeck'
+  opt :babel, "Language-option for babel-Package", :type => :string, :short => 'b', :default => DefaultLanguage
+  opt :backend, "Backend for biblatex setting up references", :type => :string, :default => Backend
+  opt :addpackage, "add latex-packages (i.e. [myoption=true]{testpackage},{otherpackage})", :type => :string, :short => 'a', :default => ''
+  opt :configfile, "Use this file as configfile", :short => "c", :default => ccfg
+  opt :deleteworkfiles, "Delete work-files from pdflatex: "+delLatexFiles.join(','), :default => false
+  opt :writeconfigfile, "write default config into #{ccfg} (overwrite)", :default => false
+  opt :debug, "Start in debugging mode", :default => false
+  opt :debugpdf, "Show latex-output during compilation", :default => false
+  opt :license, "Show license and stop", :short => 'l'
+  opt :help, "Show all options (this page)", :short => 'x'
+end
+
+cfg = Hash.new
+cfg[:handout] = false
+cfg[:writeconfigfile] = false
+cfg[:pdf] = false
+cfg[:deleteworkfiles] = false
+cfg[:debug] = false
+cfg[:debugpdf] = false
+cfg[:seperator] = sep
+cfg[:babel] = DefaultLanguage
+cfg[:logo] = pathname_lib + '/' + Logofile
+cfg[:addpackage] = ''
+cfg[:theme] = Defaulttheme
+cfg[:latexpath] = DefaultLatexPath
+cfg[:latexbinary] = DefaultLatexBinary
+cfg[:backend] = Backend
+cfg[:license] = false
+
+if File.exists?(ccfg)
+  # Reading Config-File
+  ccfgexist = "  (File exists)"
+  config = ParseConfig.new(ccfg)
+  cfg.keys.each do |k|
+    cfg[k] = config[k.to_s] if config.get_params().include?(k.to_s)
+  end
+else
+  ccfgexist = "  (File doesn't exist)"
+end
+
+# Reading options from commandline:
+cfg.keys.each do |k|
+  cfg[k] = opts[k.to_sym] if opts.has_key?((k.to_s + '_given').to_sym)
+end
+
+# transform boolean vars from string:
+[:debug,:debugpdf,:deleteworkfiles,:handout,:writeconfigfile,:pdf,:license].each {|s| cfg[s] = cfg[s].to_bool}
+
+# This our config for this session:
+if cfg[:debug]
+  puts "\n\nDebugging info:\nPathes:\npathname = #{pathname}\nhomedir = #{homedir}\n\nConfig-File = #{ccfg} #{ccfgexist}\n"
+  puts "\nConfig for this session:"
+  cfg.each_pair{|k,v| puts "#{k} = #{v}"}
+  puts "\n\n"
+end
+
+# Do we need an additional usepackage-line in tex-file?
+packages = cfg[:addpackage].split(',')
+packages.map!{|p| "\\usepackage#{p}"} if packages.size > 0
+
+if cfg[:license]
+  puts "Version #{Version}"
+  puts "\n\n" + license() + "\n"
+  exit
+end
+
+sep = cfg[:seperator]  # we use a shorter variable-name within our script
+
+# Should a configfile be written?
+if cfg[:writeconfigfile]
+  File.open(ccfg,'w') do |dat|
+    dat.puts "# Configfile for rbbeamer created at #{Time.now}"
+    cfg.each_pair{ |k,v| dat.puts "#{k} = #{v}" if k.to_s != 'writeconfigfile'} # writeconfigfile should not be saved in config
+  end
+  puts "created configfile: #{ccfg} with active options"
+end
+
+if ARGV.size <= 0
+  puts <<-EOF
+  ------------------------------------------------------
+  rbbeamer Version #{Version}
+  This script prepares slides for presentations using Beamer and LaTeX the easy way
+  See README for details or have a look at https://github.com/rubybeamer/rbbeamer
+  License: GPL Version 3 or higher
+  Author: Thomas Romeyke, rbbeamer at gmail.com
+  EOF
+  puts "\n\nNo Inputfiles given:" + ARGV.join()
+  exit
+end
+
+raise "Please specify only one rbt-file: " + ARGV.join(', ') if ARGV.size > 1
+# puts "Zu bearbeiten: "+ARGV.join(', ')
+filename = sanitize_path(ARGV.first)
+fbasename = File.basename(filename,'.rbt')
+fbasename += '_handout' if cfg[:handout]
+fn = fbasename + '.tex'
+
+# Do we have to preprocess graphviz-pictures?
+picmake = FALSE
+puts "Processing #{filename}"
+lines = IO.readlines(filename).map{|x| x.chomp}
+# Do we have to input more files? (#input|file)
+lines.each_index do |i|
+  if lines[i].split(sep).first == '#input'
+    puts "... reading input from #{lines[i].split(sep)[1].strip+'.rbt'}"
+    lines[i..i] = IO.readlines(lines[i].split(sep)[1].strip+'.rbt')
+    redo
+  end
+end
+# save all escaped seperator-symbols:
+lines.map!{|l| l.gsub(Regexp.new(Regexp.escape('\\'+sep)),SAVESEP)}
+# Any graphviz-pics?
+fh = 1
+0.step(lines.size-1) do |n|
+  line = lines[n]
+  sp = line.split(sep).reverse
+  code,content = sp.pop, sp.reverse
+  if code.to_s.chomp == "#dig{"
+    # New pic
+    picmake = TRUE
+    raise "Error: DOT without PIC-name: #{line}" if content.first.chomp.to_s.strip == ""
+    fname = content.first.chomp + ".dot"
+    fh = File.open(fname,'w')
+  end
+  if code.to_s.chomp == "#dig}"
+    # end of pic
+    picmake = FALSE
+    fh.close
+    # build pic:
+    dotcmd = "dot -Teps #{fname} -o#{File.basename(fname,'.dot')}.eps"
+    callsystem(dotcmd,cfg[:debugpdf])
+    File.delete(fname)
+  end
+  # just a normal line for setting up a graphviz-pic, simply copy it but replace our saved seperator-symbols
+  fh.puts line.gsub(SAVESEP,sep) if picmake
+end
+0.step(lines.size-1) do |n|
+  line = lines[n]
+  sp = line.split(sep).reverse
+  code,content = sp.pop, sp.reverse
+  # Do we have to copy complete lines?
+  copyLines = TRUE  if code == '#{'
+  if copyLines
+    # Copymode: precede the line with special code to copy it:
+    lines[n] = "#[|#{line}" if (code != '#{' and code != '#}')
+  else
+    if (code.to_s == ''.to_s)
+      lines[n] = " "
+    else
+      lines[n] = "#{code}#{sep}#{content.join(sep)}"
+    end
+  end
+  copyLines = FALSE   if code == '#}'
+  # find empty lines and mark them with L
+  lines[n] = "#L| " if line.strip.size == 0
+end
+lines = lines.select{|x| x[0]=='#'}  # select all lines starting with # (only these are important for us)
+puts "-> writing #{fn}"
+
+x = 0
+nums = Array.new
+text = Array.new
+numsfi = Array.new
+textfi = Array.new
+lines.each do |line|
+  sp = line.split(sep).reverse
+  code,content = sp.pop, sp.reverse
+  if code == '#fd'
+    x += 1
+    nums << 0
+    text << ''
+  end
+  if code == '#fi'
+    x += 1
+    numsfi << 0
+    textfi << ''
+  end
+  if code == '#d'
+    nums[nums.size-1] += 1
+    cs = content.first.strip
+    text[text.size-1] = cs if cs.size > text[text.size-1].size
+  end
+  if code == '#i'
+    numsfi[numsfi.size-1] += 1
+  end
+end
+openstruc = ''
+#  puts nums
+nums.reverse!
+text.reverse!
+numsfi.reverse!
+textfi.reverse!
+File.open(fn,'w') do |out|
+  out.puts "% File created by #{fname}, Version #{Version}"
+  out.puts "% File created at #{Time.now}"
+  out.puts "% DO NOT CHANGE MANUALLY, FILE WILL BE OVERWRITTEN\n% "
+  counter = 1    # Start every frame empty; after first click first item will appear
+  anz = 0
+  anzfi = 0
+  textmuster = ''
+  #   scalefaktor = 1.0  # default factor resizing DOT-pics (use command #sca to change it)
+  lines.each do |line|
+    sp = line.split(sep).reverse
+    code,content = sp.pop.strip, sp.reverse
+    #     puts "code=#{code}, content=#{content.inspect}"
+    case code
+    when  '#{', '#}', '#dig}'
+      # nothing to do
+    when '#<'
+      # puts "#< is deprecated"
+    when '#sec'    # new section
+      out.puts "\\section{#{content.first.chomp}}"
+    when '#sub'    # new subsection
+      out.puts "\\subsection{#{content.first.chomp}}"
+    when '#ssub'    # new subsubsection
+      out.puts "\\subsubsection{#{content.first.chomp}}"
+    when '#toc'    # table of content
+      #toc <optional> | Titel of TOC | depth of TOC # if depth is specified, title has to be specified too.
+      toc_title = content.first.to_s.size > 0 ? content.first.chomp.strip : 'Agenda'  # special headline given?
+      toc_depth = content[1].to_i > 0 ? content[1].to_i : 1   # default depth of toc is '1'
+      toc_line = toc_beamer % [toc_depth,toc_title]
+      out.puts toc_line
+    when '#dig{'    # Graphviz picture include
+      scalefaktor = content[1].to_f > 0 ? content[1].to_f : 1.0    # Scalefactor is optional in Content-pos. 1
+      out.puts "\\begin{figure}[h]"
+      out.puts "\\begin{center}"
+      out.puts "\\includegraphics[width=#{scalefaktor}\\linewidth]{#{content.first.strip}}"
+      out.puts "\\end{center}"
+      out.puts "\\end{figure}"
+    when '#sca'    # set our new scalefactor
+      puts "#sca is deprecated"
+      scalefaktor = content.first.to_f
+    when '#['    # Content unverändert übernehmen (this line only)
+      out.puts content.join
+    when '#sd'    # Start eines Beamer Documents, Vorspann schreiben
+      raise "Need title,author and date in #sd-Command: " + line if content.size < 3
+      Titel,Autor,Datum = content[0..2]
+      opt_handout = cfg[:handout] ? 'handout' : ''  # we include this in \documentclass-command
+      addpackage = packages.size > 0 ? packages.join("\n") : '% no additional packages defined'
+      bibline = content.size >= 4 ? '\bibliography{' + content[3].strip + '}' : '%'
+      vorspann = intro_beamer
+      vorspann.gsub!('%','/PROZENT!/')
+      vorspann.gsub!('/<-KVAR-TBR->/','%s')
+      vorspann = vorspann % [opt_handout,cfg[:babel],cfg[:backend],cfg[:theme],addpackage,bibline,Titel,Titel,Autor,Datum]
+      vorspann.gsub!('/<-LOGOFILE->/',cfg[:logo])
+      vorspann.gsub!('/PROZENT!/','%')
+      out.puts vorspann
+      endtext = '\end{document}'
+    when '#l'    # Label für Frame vergeben
+      out.puts '\label{' + content.first.strip + '}'
+    when '#f'
+      raise "#f is deprecated, please change to #fd and #Fd"
+    when '#fd'    # Beginn eines Frames
+      checkStruc(openstruc,code,'new')
+      out.puts '\frame{'
+      out.puts '  \frametitle{' + content.first + '}'
+      counter = 1
+      anz = nums.pop + 1
+      textmuster = text.pop
+      out.puts '  \begin{description}['+textmuster+':]'
+      openstruc = ['#fd',content.join]
+    when '#fi'    # Beginn eines Frames
+      checkStruc(openstruc,code,'new')
+      openstruc = ['#fi',content.join]
+      out.puts '\frame{'
+      out.puts '  \frametitle{' + content.first + '}'
+      counter = 1
+      anzfi = numsfi.pop + 1
+      out.puts '  \begin{itemize}'
+    when '#d'    # Ausgabe eines description items
+      checkStruc(openstruc,code,'-')
+      counter += 1
+      content.reverse!
+      word = content.pop.strip
+      description = content.reverse.join.gsub(SAVESEP,sep)
+      out.puts '     \item<'+counter.to_s+'-'+anz.to_s+'|alert@'+counter.to_s+'> [' + word + ':] ' + description
+    when '#i'    # Ausgabe eines items
+      checkStruc(openstruc,code,'-')
+      counter += 1
+      out.puts '     \item<'+counter.to_s+'-'+anzfi.to_s+'|alert@'+counter.to_s+'> ' + content.join.gsub(SAVESEP,sep)
+    when '#fx'    # Beginn eines Frames aber ohne description
+      out.puts '\begin{frame}[fragile]'
+      out.puts '  \frametitle{' + content.first + '}'
+    when '#L'
+      out.puts ' '  # only a newline
+    when '#F'
+      raise "#f is deprecated, please change to #fd"
+    when '#Fd'
+      checkStruc(openstruc,code,'close')
+      openstruc = ''  # closing structure
+      out.puts '  \end{description}'
+      out.puts '}'
+    when '#Fi'
+      checkStruc(openstruc,code,'close')
+      openstruc = ''  # closing structure
+      out.puts '  \end{itemize}'
+      out.puts '}'
+    when '#Fx'
+      out.puts '\end{frame}'
+    else
+      raise "(RBB) Error, don't know this command: " + code
+    end
+  end
+  checkStruc(openstruc,'#Fd','new')  # all strucs closed?
+  out.puts "\\printbibliography" if bibline != '%'
+  out.puts endtext
+end
+if cfg[:pdf]
+  pdfbin = sanitize_path(cfg[:latexpath] + cfg[:latexbinary]) + " " + sanitize_path(fn)
+  puts "Starting #{pdfbin}"
+  callsystem(pdfbin,cfg[:debugpdf])
+  if bibline != '%'
+    bibbin = sanitize_path(cfg[:latexpath] + cfg[:backend]) + " " + sanitize_path(fbasename)
+    puts "starting #{bibbin}"
+    callsystem(bibbin,cfg[:debugpdf])
+  end
+  puts "Starting #{pdfbin} again"
+  callsystem(pdfbin,FALSE)
+end
+
+# Should we delete some files from pdflatex?
+if cfg[:deleteworkfiles]
+  listing = Array.new
+  delLatexFiles.each{|f| listing << Dir.glob(fbasename + f).flatten}
+  puts "deleting files: " + listing.flatten.join(', ')  if cfg[:debug]
+  listing.flatten.each{|f| File.delete(f) if f.strip.size > 0}
+end
+
