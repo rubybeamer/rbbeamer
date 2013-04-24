@@ -168,7 +168,7 @@ License
 -------
 
 rbbeamer is a preprocessor for creating TEX-files for LaTeX-Beamer.
-Copyright (C) 2013 Thomas Romeyke (rubybeamer at googlemail.com).
+Copyright (C) 2013 Thomas Romeyke (rubybeamer at gmail.com).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
