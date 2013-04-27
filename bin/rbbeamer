@@ -23,7 +23,7 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.5.2 (2013-04-24)"
+Version = "0.5.2 (2013-04-27)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
@@ -305,7 +305,7 @@ fh = 1
     picmake = FALSE
     fh.close
     # build pic:
-    dotcmd = "dot -Teps #{fname} -o#{File.basename(fname,'.dot')}.eps"
+    dotcmd = "dot -Teps #{fname} -o #{File.basename(fname,'.dot')}.eps"
     callsystem(dotcmd,cfg[:debugpdf])
     File.delete(fname)
   end
@@ -320,7 +320,7 @@ end
   copyLines = TRUE  if code == '#{'
   if copyLines
     # Copymode: precede the line with special code to copy it:
-    lines[n] = "#[|#{line}" if (code != '#{' and code != '#}')
+    lines[n] = "#[|#{line}" if (code.to_s.strip.chomp != '#{' and code.to_s.strip.chomp != '#}')
   else
     if (code.to_s == ''.to_s)
       lines[n] = " "
@@ -328,7 +328,7 @@ end
       lines[n] = "#{code}#{sep}#{content.join(sep)}"
     end
   end
-  copyLines = FALSE   if code == '#}'
+  copyLines = FALSE   if code.to_s.strip.chomp == '#}'
   # find empty lines and mark them with L
   lines[n] = "#L| " if line.strip.size == 0
 end
@@ -428,7 +428,7 @@ File.open(fn,'w') do |out|
       out.puts '\label{' + content.first.strip + '}'
     when '#f'
       raise "#f is deprecated, please change to #fd and #Fd"
-    when '#fd'    # Beginn eines Frames
+    when '#fd'    
       checkStruc(openstruc,code,'new')
       out.puts '\frame{'
       out.puts '  \frametitle{' + content.first + '}'
@@ -457,6 +457,7 @@ File.open(fn,'w') do |out|
       counter += 1
       out.puts '     \item<'+counter.to_s+'-'+anzfi.to_s+'|alert@'+counter.to_s+'> ' + content.join.gsub(SAVESEP,sep)
     when '#fx'    # Beginn eines Frames aber ohne description
+      raise "Need frametitle as argument: " + line if content.size < 1
       out.puts '\begin{frame}[fragile]'
       out.puts '  \frametitle{' + content.first + '}'
     when '#L'
