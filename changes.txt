@@ -1,3 +1,5 @@
+0.5.3:
+fixed a problem in section #{| : Did not restore sep-symbols in tables
 0.5.2:
 added error-message in case of missing #fx-frametitle
 fixed problem using #{| to include additional frames

@@ -23,7 +23,7 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.5.2 (2013-04-27)"
+Version = "0.5.3 (2013-05-01)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
@@ -363,11 +363,11 @@ lines.each do |line|
   end
 end
 openstruc = ''
-#  puts nums
 nums.reverse!
 text.reverse!
 numsfi.reverse!
 textfi.reverse!
+# only for testing purposes: File.open('ftest.txt','w'){|f| lines.each{|x| f.puts x}}
 File.open(fn,'w') do |out|
   out.puts "% File created by #{fname}, Version #{Version}"
   out.puts "% File created at #{Time.now}"
@@ -376,11 +376,11 @@ File.open(fn,'w') do |out|
   anz = 0
   anzfi = 0
   textmuster = ''
-  #   scalefaktor = 1.0  # default factor resizing DOT-pics (use command #sca to change it)
   lines.each do |line|
     sp = line.split(sep).reverse
     code,content = sp.pop.strip, sp.reverse
-    #     puts "code=#{code}, content=#{content.inspect}"
+    # puts "code=#{code}, content=#{content.inspect}"
+    # puts "line=#{line.inspect}"
     case code
     when  '#{', '#}', '#dig}'
       # nothing to do
@@ -408,8 +408,8 @@ File.open(fn,'w') do |out|
     when '#sca'    # set our new scalefactor
       puts "#sca is deprecated"
       scalefaktor = content.first.to_f
-    when '#['    # Content unverändert übernehmen (this line only)
-      out.puts content.join
+    when '#['    # copy content without change but restore saved sep.symbols (this line only)
+      out.puts content.join.gsub(SAVESEP,sep)
     when '#sd'    # Start eines Beamer Documents, Vorspann schreiben
       raise "Need title,author and date in #sd-Command: " + line if content.size < 3
       Titel,Autor,Datum = content[0..2]
