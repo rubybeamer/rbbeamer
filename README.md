@@ -29,13 +29,13 @@ Let's say we need a couple of slides about rbbeamer. Open an ASCII-Editor of you
 
     #sub|This is my subsection
     #fx|Starting an empty frame
-    #bd|starting a block
+    #bd|starting a description
     #d|description|bd starts a description-environment
     #d|second|this is just an example
     #Bd
-    #bi|starting a block
-    #i|itemize|bd starts an itemize-environment
-    #i|second|this is just an example too
+    #bi|starting an itemize
+    #i|bi starts an itemize-environment
+    #i|this is just an example too
     #Bi
     #Fx
 
