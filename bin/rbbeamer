@@ -23,7 +23,7 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.5.4 (2013-05-09)"
+Version = "0.6.0 (2013-05-16)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
@@ -85,7 +85,7 @@ intro = <<-'EOF'
 \usepackage{colortbl}
 \usepackage{array}
 \newcolumntype{C}[1]{>{\centering\arraybackslash}m{#1}}
-% --- Colordefs ---------------------------------------- 
+% --- Colordefs --------------------------------------
 \definecolor{darkgrey}{rgb}{0.8,0.8,0.8}
 \definecolor{grey}{rgb}{0.95,0.95,0.95}
 \definecolor{red}{rgb}{0.99,0.25,0.5}
@@ -122,7 +122,7 @@ return toc
 end
 
 def checkStruc(struc,code,situation)
-  # trying to finde missing closing elements or unmatched #d or #i elements
+  # trying to find missing closing elements or unmatched #d or #i elements
   case situation
   when 'new'
     # struc must be empty, otherwise we already have an open structure
@@ -130,11 +130,11 @@ def checkStruc(struc,code,situation)
     puts "WARNING: Missing closing element for " + struc[1] unless mode
   when '-'
     # code must fit to struc
-    mode = code.gsub(/#/,'') == struc[0].gsub(/#f/,'')
+    mode = code.gsub(/#/,'') == struc[0].gsub(/#f/,'') || code.gsub(/#/,'') == struc[0].gsub(/#b/,'')
     puts "WARNING: #{code} does'nt match #{struc[0]}: '" + struc[1] + "'" unless mode
   when 'close'
     # code must fit to struc
-    mode = code.gsub(/#F/,'') == struc[0].gsub(/#f/,'')
+    mode = code.gsub(/#F/,'') == struc[0].gsub(/#f/,'') || code.gsub(/#B/,'') == struc[0].gsub(/#b/,'')
     puts "WARNING: closing #{code} does'nt match #{struc[0]}: '" + struc[1] + "'" unless mode
   else
     raise "Problem: situation= #{situation.inspect} " + ' (' + struc + '): ' + code
@@ -179,8 +179,11 @@ pathname = File.dirname(File.expand_path(__FILE__))
 pathname_lib = Pathname.new(pathname).parent.to_s + '/lib'
 homedir = Dir.home + '/'
 
+# Config-dir will be:
+ccfg_dir = homedir + '.' + firstname
+Dir.mkdir(ccfg_dir) unless Dir.exists?(ccfg_dir)
 # Configfile will be:
-ccfg = homedir + '.' + firstname + '.conf'
+ccfg = ccfg_dir + '/' + firstname + '.conf'
 
 opts = Trollop::options do
   opt :seperator, "use this pattern as seperator", :type => :string, :default => sep
@@ -236,6 +239,16 @@ end
 # transform boolean vars from string:
 [:debug,:debugpdf,:deleteworkfiles,:handout,:writeconfigfile,:pdf,:license].each {|s| cfg[s] = cfg[s].to_bool}
 
+# if specified Logofile isn't found, we will look for in in rbbeamer-config-dir:
+if not File.exists?(cfg[:logo])
+  # try finding it in ccfg_dir:
+  f = ccfg_dir + '/' + File.basename(cfg[:logo])
+  if not File.exists?(f)
+    [cfg[:logo],f].each{|x| puts "Didn't find logofile: #{x}"}
+    raise "Missing logofile"
+  end
+  cfg[:logo] = f
+end
 # This our config for this session:
 if cfg[:debug]
   puts "\n\nDebugging info:\nPathes:\npathname = #{pathname}\nhomedir = #{homedir}\n\nConfig-File = #{ccfg} #{ccfgexist}\n"
@@ -355,12 +368,12 @@ textfi = Array.new
 lines.each do |line|
   sp = line.split(sep).reverse
   code,content = sp.pop, sp.reverse
-  if code == '#fd'
+  if %w[#fd #bd].include?(code)
     x += 1
     nums << 0
     text << ''
   end
-  if code == '#fi'
+  if %w[#fi #bi].include?(code)
     x += 1
     numsfi << 0
     textfi << ''
@@ -379,6 +392,8 @@ nums.reverse!
 text.reverse!
 numsfi.reverse!
 textfi.reverse!
+counter = 1 
+
 # only for testing purposes: File.open('ftest.txt','w'){|f| lines.each{|x| f.puts x}}
 File.open(fn,'w') do |out|
   out.puts "% File created by #{fname}, Version #{Version}"
@@ -391,8 +406,8 @@ File.open(fn,'w') do |out|
   lines.each do |line|
     sp = line.chomp.split(sep).reverse
     code,content = sp.pop.strip, sp.reverse
-    # puts "code=#{code}, content=#{content.inspect}"
-    # puts "line=#{line.inspect}"
+     puts "line=#{line.inspect}"                     if cfg[:debug]
+     puts "code=#{code}, content=#{content.inspect}" if cfg[:debug]
     case code
     when  '#{', '#}', '#dig}'
       # nothing to do
@@ -427,7 +442,23 @@ File.open(fn,'w') do |out|
       Titel,Autor,Datum = content[0..2]
       opt_handout = cfg[:handout] ? 'handout' : ''  # we include this in \documentclass-command
       addpackage = packages.size > 0 ? packages.join("\n") : '% no additional packages defined'
-      bibline = content.size >= 4 ? '\bibliography{' + content[3].strip + '}' : '%'
+      if content.size >= 4
+        # find file with sources for bibliography:
+        bibFileName = content[3].strip
+        if not (File.exists?(bibFileName) || File.exists?(bibFileName+'.bib'))
+          # file is not in our working dir, so try conf-dir:
+          obibFileName = ccfg_dir + '/' + File.basename(bibFileName)
+          if not (File.exists?(obibFileName) || File.exists?(obibFileName+'.bib'))
+            # Didn't find file in conf-dir:
+            [bibFileName,obibFileName].each{|x| puts "Didn't find bibfile: #{x}"}
+            raise "Missing bibfile"
+          end
+          bibFileName = obibFileName
+        end
+        bibline = '\bibliography{' + bibFileName + '}'
+       else
+        bibline = '% No bibfile specified'
+      end
       vorspann = intro_beamer
       vorspann.gsub!('%','/PROZENT!/')
       vorspann.gsub!('/<-KVAR-TBR->/','%s')
@@ -440,7 +471,7 @@ File.open(fn,'w') do |out|
       out.puts '\label{' + content.first.strip + '}'
     when '#f'
       raise "#f is deprecated, please change to #fd, #fx or #fi"
-    when '#fd'    
+    when '#fd'   # begin of frame with decription 
       checkStruc(openstruc,code,'new')
       out.puts '\frame{'
       out.puts '  \frametitle{' + content.first + '}'
@@ -449,7 +480,7 @@ File.open(fn,'w') do |out|
       textmuster = text.pop
       out.puts '  \begin{description}['+textmuster+':]'
       openstruc = ['#fd',content.join]
-    when '#fi'    # Beginn eines Frames
+    when '#fi'    # begin of frame with itemize
       checkStruc(openstruc,code,'new')
       openstruc = ['#fi',content.join]
       out.puts '\frame{'
@@ -457,18 +488,36 @@ File.open(fn,'w') do |out|
       counter = 1
       anzfi = numsfi.pop + 1
       out.puts '  \begin{itemize}'
-    when '#d'    # Ausgabe eines description items
+    when '#bi'    # begin of block with itemize
+      checkStruc(openstruc,code,'new')
+      openstruc = ['#bi',content.join]
+      out.puts '  \begin{block}{' + content.first + '}'
+#      counter = 1
+      anzfi = numsfi.pop + 1
+      out.puts '  \begin{itemize}'
+    when '#bd'    # begin of block with description
+      checkStruc(openstruc,code,'new')
+      openstruc = ['#bd',content.join]
+      out.puts '  \begin{block}{' + content.first + '}'
+#      counter = 1
+      anz = nums.pop + 1
+      textmuster = text.pop
+      out.puts '  \begin{description}['+textmuster+':]'
+      openstruc = ['#bd',content.join]
+    when '#d'    # output description item
       checkStruc(openstruc,code,'-')
       counter += 1
       content.reverse!
       word = content.pop.strip
       description = content.reverse.join.gsub(SAVESEP,sep)
-      out.puts '     \item<'+counter.to_s+'-'+anz.to_s+'|alert@'+counter.to_s+'> [' + word + ':] ' + description
-    when '#i'    # Ausgabe eines items
+#      out.puts '     \item<'+counter.to_s+'-'+anz.to_s+'|alert@'+counter.to_s+'> [' + word + ':] ' + description
+      out.puts '     \item<'+counter.to_s+'-'+'|alert@'+counter.to_s+'> [' + word + ':] ' + description
+    when '#i'    # outpit itemize item
       checkStruc(openstruc,code,'-')
       counter += 1
-      out.puts '     \item<'+counter.to_s+'-'+anzfi.to_s+'|alert@'+counter.to_s+'> ' + content.join.gsub(SAVESEP,sep)
-    when '#fx'    # Beginn eines Frames aber ohne description
+#      out.puts '     \item<'+counter.to_s+'-'+anzfi.to_s+'|alert@'+counter.to_s+'> ' + content.join.gsub(SAVESEP,sep)
+      out.puts '     \item<'+counter.to_s+'-'+'|alert@'+counter.to_s+'> ' + content.join.gsub(SAVESEP,sep)
+    when '#fx'    # begin of empty frame 
       raise "Need frametitle as argument: " + line if content.size < 1
       out.puts '\begin{frame}[fragile]'
       out.puts '  \frametitle{' + content.first + '}'
@@ -481,13 +530,26 @@ File.open(fn,'w') do |out|
       openstruc = ''  # closing structure
       out.puts '  \end{description}'
       out.puts '}'
+      counter = 1
     when '#Fi'
       checkStruc(openstruc,code,'close')
       openstruc = ''  # closing structure
       out.puts '  \end{itemize}'
       out.puts '}'
+      counter = 1
+    when '#Bi'
+      checkStruc(openstruc,code,'close')
+      openstruc = ''  # closing structure
+      out.puts '  \end{itemize}'
+      out.puts '  \end{block}'
+    when '#Bd'
+      checkStruc(openstruc,code,'close')
+      openstruc = ''  # closing structure
+      out.puts '  \end{description}'
+      out.puts '  \end{block}'
     when '#Fx'
       out.puts '\end{frame}'
+      counter = 1
     else
       raise "(RBB) Error, don't know this command: " + code
     end

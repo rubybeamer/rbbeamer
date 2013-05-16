@@ -1,4 +1,5 @@
 0.5.4:
+added new command #bi,#Bi and #bd,#Bd for blocks with itemize or description elements (see Readme)
 added a .chomp after reading a line from rbt-file before processing content
 changes in Latex-header:
  added Columntype "C" for tables
