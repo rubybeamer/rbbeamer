@@ -23,7 +23,7 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.6.0 (2013-05-16)"
+Version = "0.5.4 (2013-05-16)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'

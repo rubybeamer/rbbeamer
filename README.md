@@ -3,9 +3,9 @@ rbbeamer - ruby-beamer
 
 rbbeamer is a preprocessor script to convert a structured file with informations about your slides into a .tex file. If pdflatex is installed, rbbeamer can go on and start pdflatex to build your PDF.
 
-Most of work is done by the LaTeX-Beamer-package. But writing TEX-Files for beamer can be a little bit annoying if you usually use only a small (and everytime the same) part of the things beamer is capable to do. Most times I ended up with copy-and-pasting one slide after another and do same kind of changes all the time. 
+Most of work is done by the LaTeX-Beamer-package. But writing TEX-Files for beamer can be a little bit annoying if you usually use only a small (and everytime the same) part of the things beamer is capable to do. So if you need individual slides using all beamer-capbilities, you should use beamer directly by writing a .tex-file.
 
-rbbeamer gives you access to (right now) just a small part of beamer-capabilities - in other words: it makes accessable the capabilities I usually use in my presentations / lectures. But you can input your data very fast with nearly no hazzle about formatting and counting clicks and all this stuff.
+rbbeamer gives you access to (right now) just a small part of beamer-capabilities. But you can input your data very fast with nearly no hazzle about formatting and counting clicks and all this stuff.
 
 Example
 -------
@@ -27,6 +27,18 @@ Let's say we need a couple of slides about rbbeamer. Open an ASCII-Editor of you
     #d|disadvantage | you have to read a \emph{small} README.
     #Fd
 
+    #sub|This is my subsection
+    #fx|Starting an empty frame
+    #bd|starting a block
+    #d|description|bd starts a description-environment
+    #d|second|this is just an example
+    #Bd
+    #bi|starting a block
+    #i|itemize|bd starts an itemize-environment
+    #i|second|this is just an example too
+    #Bi
+    #Fx
+
 Save this file as demo.rbt (rbt is default extension for rbbeamer-files). Now start rbbeamer:
 
 if pdflatex is installed:
@@ -37,7 +49,7 @@ or, if you just want to create a TEX-File for later use
 
     rbbeamer demo.rbt
 
-The resulting .TEX file will create a presentation with a title page, a table of content titled "Agenda" and two slides with data.
+The resulting .TEX file will create a presentation with a title page, a table of content titled "Agenda" and two slides with data. Both slides will step from one item to the next by mouseclick
 
 ### Install
 
@@ -49,7 +61,7 @@ rbbeamer compiles .rbt-files into .tex-files. If you want to create your PDF, yo
 
 rbbeamer ist a script written in [Ruby][ruby]. You need a running Ruby-Installation (tested: 1.9.3, 2.0.0p0), most modern operating systems include one. rbbeamer ist developed and tested under Linux - it should run under MAC OS/X and Windows too - but I didn' t test it until now. Drop me a mail if you have additional info.
 
-Creating pictures you will need [Graphviz][graphviz] in your path
+Creating pictures you will need *graphviz* in your path
 ### Commands
 
 Commands start with a "#" as first char in a line. Every line not starting with # is ignored (so a blank as the first char means: this is a comment). You can use this to specify additional informations not shown on slide or just to decativate a command for testing purposes. The end of a command is defined by line break or seperator-char (default: |)
@@ -88,6 +100,18 @@ Defines a frame (one slide) with no content. \<yourtitle> will be the title of f
 
     #Fx
 Closes a frame started with `#fx`. 
+
+    #bi|<yourtitle>
+Starts a new block inside a fx-frame named \<yourtitle>. Alle entries in block should follow with #i-command (itemize).
+
+    #Bi
+Closes a block started with `#bi`. 
+
+    #bd|<yourtitle>
+Starts a new block inside a fx-frame named \<yourtitle>. Alle entries in block should follow with #d-command (description).
+
+    #Bd
+Closes a block started with `#bd`. 
 
     #[|content
 This command just copies all content of this line into resulting .TEX-file. Lets say, you want to specify a section with an additional short title. This you cannot do with `#sec`-command. Instead you can use `#[|\section[Short Title]{Really Long Title}`. Resulting .TEX-file will include this line: `\section[Short Title]{Really Long Title}`
@@ -129,10 +153,13 @@ Starting rbbeamer at least you will have to specify your .rbt-file to compile. B
                --help, -x:   Show all options (this page)
 
 
-### .rbbeamer.conf
-Nearly all options regarding rbbeamer can be specified in command-line. But most times you don' t change your options. So ist is easier to use a config-file to save them. During startup rbbeamer sets all options to default values. If it finds .rbbeamer.conf, options are overriden by those specified in config-file. If you also specified options in command-line, these values will override the former ones.
+### Config-directory
+During startup rbbeamer tries to find config-dir (Linux: `~/.rbbeamer`). If it doesn't exist, it will be created. You can save some files used by a myjority of your presentations in this dir (i.e. logo-files, bibtex-sources). rbbeamer tries to find this files in this dir, if you didn't specify another directory. In my case, I store my bibtex-sourcefile with all entries I usually cite from in this dir. So I don't have to bother with copies of this file in different directories.
 
-To create your config-file, just specify all options needed for your work and add `--writeconfigfile (or -w)`. rbbeamer will then create a config (Linux: `~/.rbbeamer.conf`) to save all options within. Next time just start rbbeamer and specify your .rbt-file. Thats it. You can edit your config-file with any editor.
+### rbbeamer.conf 
+Nearly all options regarding rbbeamer can be specified in command-line. But most times you don' t change your options. So ist is easier to use a config-file to save them. During startup rbbeamer sets all options to default values. If it finds rbbeamer.conf, options are overriden by those specified in config-file. If you also specified options in command-line, these values will override the former ones.
+
+To create your config-file, just specify all options needed for your work and add `--writeconfigfile (or -w)`. rbbeamer will then create a config (Linux: `~/.rbbeamer/rbbeamer.conf`) to save all options within. Next time just start rbbeamer and specify your .rbt-file. Thats it. You can edit your config-file with any editor.
 
     handout = false
     pdf = true
@@ -168,7 +195,7 @@ License
 -------
 
 rbbeamer is a preprocessor for creating TEX-files for LaTeX-Beamer.
-Copyright (C) 2013 Thomas Romeyke (rubybeamer at gmail.com).
+Copyright (C) 2013 Thomas Romeyke (rubybeamer at googlemail.com).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
