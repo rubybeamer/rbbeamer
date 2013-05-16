@@ -1,3 +1,10 @@
+0.5.4:
+added a .chomp after reading a line from rbt-file before processing content
+changes in Latex-header:
+ added Columntype "C" for tables
+ added package colortbl with some colordefs
+ added package eurosym
+ added new fontsize (Fontvi for tables)
 0.5.3:
 fixed a problem in section #{| : Did not restore sep-symbols in tables
 0.5.2:

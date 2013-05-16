@@ -23,7 +23,7 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.5.3 (2013-05-01)"
+Version = "0.5.4 (2013-05-09)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
@@ -74,12 +74,24 @@ intro = <<-'EOF'
 \usepackage[utf8]{inputenc}		
 \setbeamercovered{transparent}
 \usepackage{pdfpages}
+\usepackage{eurosym}
 \usepackage[style=authortitle,backend=/<-KVAR-TBR->/]{biblatex} 
 \usetheme{/<-KVAR-TBR->/}
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows}
 /<-KVAR-TBR->/
 /<-KVAR-TBR->/
+\newcommand\Fontvi{\fontsize{7}{7.2}\selectfont}
+\usepackage{colortbl}
+\usepackage{array}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}m{#1}}
+% --- Colordefs ---------------------------------------- 
+\definecolor{darkgrey}{rgb}{0.8,0.8,0.8}
+\definecolor{grey}{rgb}{0.95,0.95,0.95}
+\definecolor{red}{rgb}{0.99,0.25,0.5}
+\definecolor{blue}{rgb}{0.1,0.25,0.95}
+\definecolor{green}{rgb}{0.1,0.95,0.1}
+% Usage: \cellcolor{hellgruen}
 \begin{document}
 \title[{\makebox[.45\paperwidth]{/<-KVAR-TBR->/\hfill%
        \insertframenumber/\inserttotalframenumber}}]{/<-KVAR-TBR->/} 
@@ -377,7 +389,7 @@ File.open(fn,'w') do |out|
   anzfi = 0
   textmuster = ''
   lines.each do |line|
-    sp = line.split(sep).reverse
+    sp = line.chomp.split(sep).reverse
     code,content = sp.pop.strip, sp.reverse
     # puts "code=#{code}, content=#{content.inspect}"
     # puts "line=#{line.inspect}"
@@ -427,7 +439,7 @@ File.open(fn,'w') do |out|
     when '#l'    # Label für Frame vergeben
       out.puts '\label{' + content.first.strip + '}'
     when '#f'
-      raise "#f is deprecated, please change to #fd and #Fd"
+      raise "#f is deprecated, please change to #fd, #fx or #fi"
     when '#fd'    
       checkStruc(openstruc,code,'new')
       out.puts '\frame{'
