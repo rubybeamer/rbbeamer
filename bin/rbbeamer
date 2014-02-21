@@ -23,7 +23,7 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.5.5 (2014-02-21)"
+Version = "0.5.6 (2014-02-21)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
@@ -285,6 +285,7 @@ end
 # This our config for this session:
 if cfg[:debug]
   puts "\n\nDebugging info:\nPathes:\npathname = #{pathname}\nhomedir = #{homedir}\n\nConfig-File = #{ccfg} #{ccfgexist}\n"
+  puts "\n\nDebugging info:\nPathes:\npathname = #{pathname}\nhomedir = #{homedir}\n\nConfig-File = #{ccfga} #{ccfgexistL}\n"
   puts "\nConfig for this session:"
   cfg.each_pair{|k,v| puts "#{k} = #{v}"}
   puts "\n\n"
@@ -330,6 +331,9 @@ fbasename = File.basename(filename,'.rbt')
 fbasename += '_handout' if cfg[:handout]
 fn = fbasename + '.tex'
 
+# Handout mode: We will use Defaulthandoutcolor-Theme or specified handoutcolor-Theme
+# Presentation mode: We always will use Defaulthandoutcolor
+cfg[:handoutcolor] = cfg[:handout] ? cfg[:handoutcolor] : Defaulthandoutcolor  
 # Do we have to preprocess graphviz-pictures?
 picmake = FALSE
 puts "Processing #{filename}"
