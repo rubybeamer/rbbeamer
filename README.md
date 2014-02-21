@@ -61,13 +61,14 @@ rbbeamer compiles .rbt-files into .tex-files. If you want to create your PDF, yo
 
 rbbeamer ist a script written in [Ruby][ruby]. You need a running Ruby-Installation (tested: 1.9.3, 2.0.0p0), most modern operating systems include one. rbbeamer ist developed and tested under Linux - it should run under MAC OS/X and Windows too - but I didn' t test it until now. Drop me a mail if you have additional info.
 
-Creating pictures you will need *graphviz* in your path
+Creating pictures you will need *graphviz* in your path.
 ### Commands
 
-Commands start with a "#" as first char in a line. Every line not starting with # is ignored (so a blank as the first char means: this is a comment). You can use this to specify additional informations not shown on slide or just to decativate a command for testing purposes. The end of a command is defined by line break or seperator-char (default: |)
+Commands start with a "#" as first char in a line. Every line not starting with # is ignored (so a blank as the first char means: this is a comment). You can use this to specify additional informations not shown on slide or just to deactivate a command for testing purposes. The end of a command is defined by line break or seperator-char (default: |)
 
     #sd|<Title Of Presentation> | <Author> | <Date> [ | sources]
-start definition-command: Defines a titlepage with three entities. If you want to use citations with biblatex, just give a fourth option with name of .bib-file (specify without extension), i.e. `#sd| My Title Of Presentation | John Doe | April 2013 | sources`
+start definition-command: Defines a titlepage with three entities. If you want to use citations with biblatex, just give a fourth option with name of .bib-file (specify without extension), i.e. `#sd| My Title Of Presentation | John Doe | April 2013 | sources`. 
+rbbeamer will then try to include a file named `sources.bib`.
 
     #toc [| Agenda | <DEPTH>]
 Table-Of-Content: includes a TOC-page based on defined sections and subsections. Optional: you can specify a title (default: Agenda) and a depth for building TOC (default: 1).
@@ -128,6 +129,9 @@ Using [Graphviz][graphviz]-package you can include pictures into your presentati
     #input|<filename>
 If you have large presentations, sometimes it is easier to use different source-files for different parts. Using `input`-command you can include another .rbt-file into your presentation (and yes, this one also can input a third one and so on).
 
+    #attn
+Using #attn one can mark some slides as very important. This mark is an red triangle at lower left corner (on handouts) or a small blue dot at same corner (on slides, it is only a signal for your talk). 
+
 ### Commandline Options
 Starting rbbeamer at least you will have to specify your .rbt-file to compile. But beside this you can specify a lot of options. Try option `--help` or `-x` to see a short description.
 
@@ -138,6 +142,7 @@ Starting rbbeamer at least you will have to specify your .rbt-file to compile. B
             --handout, -h:   build a handout (no animations in pdf, add _handout
                              to filename)
           --theme, -t <s>:   Beamer-Theme to use (see Beamer-Doc for more info)
+   --handoutcolor, -n <s>:   Colortheme for printing handouts (try DOVE to save ink) (default: default)
                              (default: Luebeck)
           --babel, -b <s>:   Language-option for babel-Package (default: english)
         --backend, -a <s>:   Backend for biblatex setting up references (default:
@@ -153,13 +158,16 @@ Starting rbbeamer at least you will have to specify your .rbt-file to compile. B
                --help, -x:   Show all options (this page)
 
 
-### Config-directory
-During startup rbbeamer tries to find config-dir (Linux: `~/.rbbeamer`). If it doesn't exist, it will be created. You can save some files used by a myjority of your presentations in this dir (i.e. logo-files, bibtex-sources). rbbeamer tries to find this files in this dir, if you didn't specify another directory. In my case, I store my bibtex-sourcefile with all entries I usually cite from in this dir. So I don't have to bother with copies of this file in different directories.
+### Global Config-directory
+During startup rbbeamer tries to find config-dir (Linux: `~/.rbbeamer`). If it doesn't exist, it will be created. You can save some files used by a majority of your presentations in this dir (i.e. logo-files, bibtex-sources). rbbeamer tries to find this files in this dir, if you do not specify another directory. In my case, I store my bibtex-sourcefile with all entries I usually cite from in this dir. So I don't have to bother with copies of this file in different directories.
+
+### Local Config-directory
+In some cases you will prefer configs on a per-project basis. You can now use an additional config-file named `.rbbeamer.conf` in your working dir (where your `rbt-files` are stored. In this file you change perhaps your logo-file to a different one only used in this project. At startup rbbeamer will read global config file first and then tries to read a local config file in your working dir, which will overrule global settings.
 
 ### rbbeamer.conf 
 Nearly all options regarding rbbeamer can be specified in command-line. But most times you don' t change your options. So ist is easier to use a config-file to save them. During startup rbbeamer sets all options to default values. If it finds rbbeamer.conf, options are overriden by those specified in config-file. If you also specified options in command-line, these values will override the former ones.
 
-To create your config-file, just specify all options needed for your work and add `--writeconfigfile (or -w)`. rbbeamer will then create a config (Linux: `~/.rbbeamer/rbbeamer.conf`) to save all options within. Next time just start rbbeamer and specify your .rbt-file. Thats it. You can edit your config-file with any editor.
+To create your global config-file, just specify all options needed for your work and add `--writeconfigfile (or -w)`. rbbeamer will then create a config (Linux: `~/.rbbeamer/rbbeamer.conf`) to save all options within. Next time just start rbbeamer and specify your .rbt-file. Thats it. You can edit your config-file with any editor.
 
     handout = false
     pdf = true
@@ -172,6 +180,7 @@ To create your config-file, just specify all options needed for your work and ad
     logo = rbb_logo
     addpackage =
     theme = Luebeck
+    handoutcolor = dove
     latexpath = 
     latexbinary = pdflatex
     backend = bibtex

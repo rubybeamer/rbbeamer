@@ -1,3 +1,11 @@
+0.5.5:
+ added a solution to marke some slides as very important (see #attn in documentation)
+ modified helptext
+ Configfile .rbbeamer in your config-dir is now called Global Configfile. You can use 
+ a second configfile (local configfile) in every working dir, where you specify special configs
+ only used in this project (perhaps a special logo).
+ Fixed a problem determining the filename of running instance when creating the .tex-file.
+
 0.5.4:
 added new command #bi,#Bi and #bd,#Bd for blocks with itemize or description elements (see Readme)
 added a .chomp after reading a line from rbt-file before processing content
@@ -6,8 +14,10 @@ changes in Latex-header:
  added package colortbl with some colordefs
  added package eurosym
  added new fontsize (Fontvi for tables)
+
 0.5.3:
 fixed a problem in section #{| : Did not restore sep-symbols in tables
+
 0.5.2:
 added error-message in case of missing #fx-frametitle
 fixed problem using #{| to include additional frames

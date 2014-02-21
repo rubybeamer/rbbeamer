@@ -23,11 +23,12 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.5.4 (2013-05-16)"
+Version = "0.5.5 (2014-02-21)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
 Defaulttheme = 'Luebeck'
+Defaulthandoutcolor = 'default' #'dove'
 DefaultLanguage = 'english'
 Backend = 'bibtex'
 Logofile = 'logo'  # should be .png or .jpg or ...
@@ -77,6 +78,7 @@ intro = <<-'EOF'
 \usepackage{eurosym}
 \usepackage[style=authortitle,backend=/<-KVAR-TBR->/]{biblatex} 
 \usetheme{/<-KVAR-TBR->/}
+\usecolortheme{/<-KVAR-TBR->/}
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows}
 /<-KVAR-TBR->/
@@ -91,17 +93,32 @@ intro = <<-'EOF'
 \definecolor{red}{rgb}{0.99,0.25,0.5}
 \definecolor{blue}{rgb}{0.1,0.25,0.95}
 \definecolor{green}{rgb}{0.1,0.95,0.1}
-% Usage: \cellcolor{hellgruen}
+% Usage: \cellcolor{grey}
+% placing marks on some pages
+\usepackage{textpos}
+\newcommand{\attn}{
+\mode<handout>{
+\begin{textblock}{1}(-1,6.5)
+\begin{tikzpicture}
+        \draw[line width=2pt,color=red] (7,0)--(8,0)--(7.5,1)--cycle; % triangle on handouts
+\end{tikzpicture}	
+\end{textblock}	
+}
+\mode<beamer>{
+\begin{textblock}{1}(-1,8.5)
+\begin{tikzpicture}
+	\draw[line width=2pt,color=red] (7,0)--(7.1,0); % small dot on slides
+\end{tikzpicture}	
+\end{textblock}
+}
+}
+
 \begin{document}
 \title[{\makebox[.45\paperwidth]{/<-KVAR-TBR->/\hfill%
        \insertframenumber/\inserttotalframenumber}}]{/<-KVAR-TBR->/} 
 \titlegraphic{\includegraphics[height=1.5cm]{/<-LOGOFILE->/}}
 \author{/<-KVAR-TBR->/}
 \date{/<-KVAR-TBR->/} 
-%\setbeamerfont{parent A}{size=\Large}
-%\setbeamerfont{parent B}{size=\small}
-%\setbeamerfont{parent B}{size=\footnotesize}
-%\setbeamerfont{parent Z}{size=\normalsize}
 \logo{\pgfimage[height=0.7cm]{/<-LOGOFILE->/}}
 \frame [plain]{
   \titlepage   
@@ -173,7 +190,7 @@ end
 
 #######################################################################################
 
-fname = File.basename(__FILE__)
+fprgname = File.basename(__FILE__)
 firstname = File.basename(__FILE__,'.*')
 pathname = File.dirname(File.expand_path(__FILE__))
 pathname_lib = Pathname.new(pathname).parent.to_s + '/lib'
@@ -182,20 +199,23 @@ homedir = Dir.home + '/'
 # Config-dir will be:
 ccfg_dir = homedir + '.' + firstname
 Dir.mkdir(ccfg_dir) unless Dir.exists?(ccfg_dir)
-# Configfile will be:
+# global Configfile will be:
 ccfg = ccfg_dir + '/' + firstname + '.conf'
+# additional Configfile could be stored in our working dir as hidden file
+ccfga = '.' + firstname + '.conf'
 
 opts = Trollop::options do
   opt :seperator, "use this pattern as seperator", :type => :string, :default => sep
   opt :logo, "Logo-File (without extension) for slides", :type => :string, :short => 'o', :default => Logofile
   opt :pdf, "Start pdflatex after creating tex-file", :default => false
   opt :handout, "build a handout (no animations in pdf, add _handout to filename)", :default => false
-  opt :theme, "Beamer-Theme to use (see Beamer-Doc for more info)", :type => :string, :default => 'luebeck'
+  opt :handoutcolor, "Colortheme for printing handouts (try DOVE to save ink)", :type => :string, :short => 'n', :default =>  Defaulthandoutcolor
+  opt :theme, "Beamer-Theme to use (see Beamer-Doc for more info)", :type => :string, :default => Defaulttheme
   opt :babel, "Language-option for babel-Package", :type => :string, :short => 'b', :default => DefaultLanguage
   opt :backend, "Backend for biblatex setting up references", :type => :string, :default => Backend
   opt :addpackage, "add latex-packages (i.e. [myoption=true]{testpackage},{otherpackage})", :type => :string, :short => 'a', :default => ''
   opt :configfile, "Use this file as configfile", :short => "c", :default => ccfg
-  opt :deleteworkfiles, "Delete work-files from pdflatex: "+delLatexFiles.join(','), :default => false
+  opt :deleteworkfiles, "Delete workfiles after producing pdf: "+delLatexFiles.join(','), :default => false
   opt :writeconfigfile, "write default config into #{ccfg} (overwrite)", :default => false
   opt :debug, "Start in debugging mode", :default => false
   opt :debugpdf, "Show latex-output during compilation", :default => false
@@ -211,6 +231,7 @@ cfg[:deleteworkfiles] = false
 cfg[:debug] = false
 cfg[:debugpdf] = false
 cfg[:seperator] = sep
+cfg[:handoutcolor] = Defaulthandoutcolor
 cfg[:babel] = DefaultLanguage
 cfg[:logo] = pathname_lib + '/' + Logofile
 cfg[:addpackage] = ''
@@ -220,15 +241,27 @@ cfg[:latexbinary] = DefaultLatexBinary
 cfg[:backend] = Backend
 cfg[:license] = false
 
+#read global Configfile if present:
 if File.exists?(ccfg)
   # Reading Config-File
-  ccfgexist = "  (File exists)"
+  ccfgexist = "  (Global Configfile exists)"
   config = ParseConfig.new(ccfg)
   cfg.keys.each do |k|
     cfg[k] = config[k.to_s] if config.get_params().include?(k.to_s)
   end
 else
-  ccfgexist = "  (File doesn't exist)"
+  ccfgexist = "  (Global Configfile doesn't exist)"
+end
+#read project Configfile if present (these specification will overrule global ones):
+if File.exists?(ccfga)
+  # Reading Config-File
+  ccfgexistL = "  (Local Configfile exists)"
+  config = ParseConfig.new(ccfga)
+  cfg.keys.each do |k|
+    cfg[k] = config[k.to_s] if config.get_params().include?(k.to_s)
+  end
+else
+  ccfgexistL = "  (Local Configfile doesn't exist)"
 end
 
 # Reading options from commandline:
@@ -292,7 +325,6 @@ if ARGV.size <= 0
 end
 
 raise "Please specify only one rbt-file: " + ARGV.join(', ') if ARGV.size > 1
-# puts "Zu bearbeiten: "+ARGV.join(', ')
 filename = sanitize_path(ARGV.first)
 fbasename = File.basename(filename,'.rbt')
 fbasename += '_handout' if cfg[:handout]
@@ -314,6 +346,7 @@ end
 lines.map!{|l| l.gsub(Regexp.new(Regexp.escape('\\'+sep)),SAVESEP)}
 # Any graphviz-pics?
 fh = 1
+fname = ''  # will store our pic-filename
 0.step(lines.size-1) do |n|
   line = lines[n]
   sp = line.split(sep).reverse
@@ -394,9 +427,8 @@ numsfi.reverse!
 textfi.reverse!
 counter = 1 
 
-# only for testing purposes: File.open('ftest.txt','w'){|f| lines.each{|x| f.puts x}}
 File.open(fn,'w') do |out|
-  out.puts "% File created by #{fname}, Version #{Version}"
+  out.puts "% File created by #{fprgname}, Version #{Version}"
   out.puts "% File created at #{Time.now}"
   out.puts "% DO NOT CHANGE MANUALLY, FILE WILL BE OVERWRITTEN\n% "
   counter = 1    # Start every frame empty; after first click first item will appear
@@ -462,7 +494,7 @@ File.open(fn,'w') do |out|
       vorspann = intro_beamer
       vorspann.gsub!('%','/PROZENT!/')
       vorspann.gsub!('/<-KVAR-TBR->/','%s')
-      vorspann = vorspann % [opt_handout,cfg[:babel],cfg[:backend],cfg[:theme],addpackage,bibline,Titel,Titel,Autor,Datum]
+      vorspann = vorspann % [opt_handout,cfg[:babel],cfg[:backend],cfg[:theme],cfg[:handoutcolor],addpackage,bibline,Titel,Titel,Autor,Datum]
       vorspann.gsub!('/<-LOGOFILE->/',cfg[:logo])
       vorspann.gsub!('/PROZENT!/','%')
       out.puts vorspann
@@ -550,6 +582,8 @@ File.open(fn,'w') do |out|
     when '#Fx'
       out.puts '\end{frame}'
       counter = 1
+    when '#attn'  # mark this slide as important (handout)
+      out.puts '\attn'
     else
       raise "(RBB) Error, don't know this command: " + code
     end
