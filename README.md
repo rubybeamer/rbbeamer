@@ -142,8 +142,8 @@ Starting rbbeamer at least you will have to specify your .rbt-file to compile. B
             --handout, -h:   build a handout (no animations in pdf, add _handout
                              to filename)
           --theme, -t <s>:   Beamer-Theme to use (see Beamer-Doc for more info)
-   --handoutcolor, -n <s>:   Colortheme for printing handouts (try DOVE to save ink) (default: default)
                              (default: Luebeck)
+   --handoutcolor, -n <s>:   Colortheme for printing handouts (try DOVE to save ink) (default: default)
           --babel, -b <s>:   Language-option for babel-Package (default: english)
         --backend, -a <s>:   Backend for biblatex setting up references (default:
                              bibtex)
