@@ -3,9 +3,11 @@ rbbeamer - ruby-beamer
 
 rbbeamer is a preprocessor script to convert a structured file with informations about your slides into a .tex file. If pdflatex is installed, rbbeamer can go on and start pdflatex to build your PDF.
 
-Most of work is done by the LaTeX-Beamer-package. But writing TEX-Files for beamer can be a little bit annoying if you usually use only a small (and everytime the same) part of the things beamer is capable to do. So if you need individual slides using all beamer-capbilities, you should use beamer directly by writing a .tex-file.
+Most of work is done by the LaTeX-Beamer-package. But writing TEX-Files for beamer can be a little bit annoying if you usually use only a small (and everytime the same) part of the things
+beamer is capable to do. So if you need individual slides using all beamer-capabilities, you should use beamer directly by writing a .tex-file.
 
-rbbeamer gives you access to (right now) just a small part of beamer-capabilities. But you can input your data very fast with nearly no hazzle about formatting and counting clicks and all this stuff.
+rbbeamer enables you (right now) to access just a small part of beamer-capabilities. But you can input your data very fast with nearly no hazzle about formatting and counting clicks and all 
+this stuff.
 
 Example
 -------
@@ -55,7 +57,7 @@ The resulting .TEX file will create a presentation with a title page, a table of
 
 Install with `gem install rbbeamer`. 
 
-rbbeamer compiles .rbt-files into .tex-files. If you want to create your PDF, you should also have a latex-installation (otherwise rbbeamer will just create a TEX-file that you can use to work with at your own). If latex is not in your $PATH, you can specify a path in ~/.rbbeamer.conf. Default binary-name ist pdflatex.
+rbbeamer compiles .rbt-files into .tex-files. If you want to create your PDF, you should also have a latex-installation (otherwise rbbeamer will just create a TEX-file that you can use to work with at your own). If latex is not in your $PATH, you can specify a path in ~/.rbbeamer/rbbeamer.conf. Default binary-name ist pdflatex.
 
 ### System prerequisites
 
@@ -143,7 +145,7 @@ Starting rbbeamer at least you will have to specify your .rbt-file to compile. B
                              to filename)
           --theme, -t <s>:   Beamer-Theme to use (see Beamer-Doc for more info)
                              (default: Luebeck)
-    --handoutcolor,-n <s>:   Colortheme for printing handouts (try DOVE to save ink) (default: default)
+    --handoutcolor,-n <s>:   Colortheme for printing handouts (use 'handoutcolor = ' to deactivate this option) (default: dove)
           --babel, -b <s>:   Language-option for babel-Package (default: english)
         --backend, -a <s>:   Backend for biblatex setting up references (default:
                              bibtex)

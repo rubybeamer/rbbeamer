@@ -23,12 +23,12 @@ require 'parseconfig.rb'
 require 'open3'
 require 'pathname'
 
-Version = "0.5.6 (2014-02-21)"
+Version = "0.5.7 (2014-04-06)"
 
 sep = '|' # seperator-string to split different parts of a line / command
 SAVESEP = '<-saveThisAsSeperatorForLaterUse->'
 Defaulttheme = 'Luebeck'
-Defaulthandoutcolor = 'default' #'dove'
+Defaulthandoutcolor = 'dove' # to save ink printing the handout
 DefaultLanguage = 'english'
 Backend = 'bibtex'
 Logofile = 'logo'  # should be .png or .jpg or ...
@@ -78,7 +78,7 @@ intro = <<-'EOF'
 \usepackage{eurosym}
 \usepackage[style=authortitle,backend=/<-KVAR-TBR->/]{biblatex} 
 \usetheme{/<-KVAR-TBR->/}
-\usecolortheme{/<-KVAR-TBR->/}
+/<-KVAR-TBR->/
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows}
 /<-KVAR-TBR->/
@@ -209,7 +209,7 @@ opts = Trollop::options do
   opt :logo, "Logo-File (without extension) for slides", :type => :string, :short => 'o', :default => Logofile
   opt :pdf, "Start pdflatex after creating tex-file", :default => false
   opt :handout, "build a handout (no animations in pdf, add _handout to filename)", :default => false
-  opt :handoutcolor, "Colortheme for printing handouts (try DOVE to save ink)", :type => :string, :short => 'n', :default =>  Defaulthandoutcolor
+  opt :handoutcolor, "Colortheme for printing handouts (use 'handoutcolor = ' to deactivate this option)", :type => :string, :short => 'n', :default =>  Defaulthandoutcolor
   opt :theme, "Beamer-Theme to use (see Beamer-Doc for more info)", :type => :string, :default => Defaulttheme
   opt :babel, "Language-option for babel-Package", :type => :string, :short => 'b', :default => DefaultLanguage
   opt :backend, "Backend for biblatex setting up references", :type => :string, :default => Backend
@@ -331,9 +331,9 @@ fbasename = File.basename(filename,'.rbt')
 fbasename += '_handout' if cfg[:handout]
 fn = fbasename + '.tex'
 
-# Handout mode: We will use Defaulthandoutcolor-Theme or specified handoutcolor-Theme
-# Presentation mode: We always will use Defaulthandoutcolor
-cfg[:handoutcolor] = cfg[:handout] ? cfg[:handoutcolor] : Defaulthandoutcolor  
+# Handout mode: We will use Defaulthandoutcolor or specified handoutcolor
+# Presentation mode: We do not specify a color scheme
+handoutcolorLine = cfg[:handout] ? '\usecolortheme{' + cfg[:handoutcolor] + '}' : '% No colortheme specified'  
 # Do we have to preprocess graphviz-pictures?
 picmake = FALSE
 puts "Processing #{filename}"
@@ -473,7 +473,7 @@ File.open(fn,'w') do |out|
       scalefaktor = content.first.to_f
     when '#['    # copy content without change but restore saved sep.symbols (this line only)
       out.puts content.join.gsub(SAVESEP,sep)
-    when '#sd'    # Start eines Beamer Documents, Vorspann schreiben
+    when '#sd'    # Starting beamer document, writing head of document
       raise "Need title,author and date in #sd-Command: " + line if content.size < 3
       Titel,Autor,Datum = content[0..2]
       opt_handout = cfg[:handout] ? 'handout' : ''  # we include this in \documentclass-command
@@ -498,7 +498,8 @@ File.open(fn,'w') do |out|
       vorspann = intro_beamer
       vorspann.gsub!('%','/PROZENT!/')
       vorspann.gsub!('/<-KVAR-TBR->/','%s')
-      vorspann = vorspann % [opt_handout,cfg[:babel],cfg[:backend],cfg[:theme],cfg[:handoutcolor],addpackage,bibline,Titel,Titel,Autor,Datum]
+#      vorspann = vorspann % [opt_handout,cfg[:babel],cfg[:backend],cfg[:theme],cfg[:handoutcolor],addpackage,bibline,Titel,Titel,Autor,Datum]
+      vorspann = vorspann % [opt_handout,cfg[:babel],cfg[:backend],cfg[:theme],handoutcolorLine,addpackage,bibline,Titel,Titel,Autor,Datum]
       vorspann.gsub!('/<-LOGOFILE->/',cfg[:logo])
       vorspann.gsub!('/PROZENT!/','%')
       out.puts vorspann
